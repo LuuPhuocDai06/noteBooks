@@ -114,3 +114,74 @@ Chuỗi là cục bột, regex là cái khuôn. Cục bột nào vừa khuôn th
 2. `matches` yêu cầu khớp **toàn bộ** chuỗi, không phải chỉ một phần.
    `"abc123".matches("\\d+")` là `false`, vì có `abc` ở đầu.
    Muốn tìm một phần thì dùng `Matcher.find()`.
+
+---
+
+## 4. Bổ sung: `Pattern`, `Matcher`, `find`, `matches` và nhóm
+
+### Quy trình 3 bước
+
+```java
+Pattern p = Pattern.compile("Java \\d+");   // 1. biên dịch regex (làm 1 lần, dùng lại được)
+Matcher m = p.matcher("Java 17 va Java 21"); // 2. gắn regex vào chuỗi cần xét
+while (m.find()) {                            // 3. tìm từng đoạn khớp
+    System.out.println(m.group());
+}
+```
+
+### Các hàm của `Matcher`
+
+| Hàm | Ý nghĩa |
+|---|---|
+| `matches()` | Khớp **toàn bộ** chuỗi |
+| `find()` | Tìm đoạn khớp **tiếp theo**, trả `true` nếu có. Gọi lặp trong `while` để lấy hết |
+| `lookingAt()` | Khớp **từ đầu chuỗi**, không cần khớp hết đến cuối |
+| `group()` hoặc `group(0)` | Toàn bộ đoạn vừa khớp |
+| `group(n)` | Nội dung của nhóm `( )` thứ n |
+| `group("ten")` | Nội dung của nhóm có tên `(?<ten>...)` |
+| `groupCount()` | Số nhóm `( )` **có trong regex** (không phụ thuộc chuỗi) |
+| `start()` / `end()` | Vị trí bắt đầu / vị trí **ngay sau** ký tự cuối của đoạn khớp |
+| `reset()` | Đưa Matcher về đầu chuỗi để tìm lại |
+
+### Demo (đã chạy thử)
+
+```java
+String text = "Java 17 va Java 21";
+Pattern p = Pattern.compile("Java \\d+");
+
+System.out.println(p.matcher(text).matches());    // false: cả chuỗi không chỉ là "Java <số>"
+System.out.println(p.matcher(text).lookingAt());  // true: đầu chuỗi khớp "Java 17"
+
+Matcher m = p.matcher(text);
+while (m.find()) {
+    System.out.println(m.group() + " [" + m.start() + "," + m.end() + ")");
+}
+// Java 17 [0,7)
+// Java 21 [11,18)
+
+Matcher d = Pattern.compile("(\\d{2})/(\\d{2})/(\\d{4})").matcher("31/10/2026");
+System.out.println(d.groupCount());               // 3
+if (d.matches()) {
+    System.out.println(d.group(0));               // 31/10/2026 (toàn bộ)
+    System.out.println(d.group(1));               // 31
+    System.out.println(d.group(3));               // 2026
+}
+
+// Dùng nhóm trong replaceAll bằng $1, $2, $3
+System.out.println("31/10/2026".replaceAll("(\\d{2})/(\\d{2})/(\\d{4})", "$3-$2-$1"));
+// 2026-10-31
+```
+
+### Giải thích dễ hiểu
+
+- **`matches` và `find` khác nhau thế nào?** `matches` hỏi "**cả chuỗi** có đúng hình dạng này không?" (dùng để **kiểm tra**). `find` hỏi "**trong chuỗi** có đoạn nào đúng hình dạng này không?" rồi đứng lại ở đoạn đó, gọi lần nữa thì tìm đoạn kế tiếp (dùng để **tìm và lấy**).
+- **`group` dùng được với cả `matches` và `find`**, miễn là lần gọi gần nhất trả về `true`.
+- **Đánh số nhóm:** đếm theo dấu `(` mở, từ trái sang phải. Ví dụ `((\d{2})/(\d{2}))`: nhóm 1 là cả `dd/MM`, nhóm 2 là `dd`, nhóm 3 là `MM`.
+- **Nhóm không bắt `(?:...)`:** dùng để "gói lại" mà **không** tính vào số thứ tự nhóm. Ví dụ `(?:\d{2})/(\d{2})/(\d{4})` chỉ có 2 nhóm.
+- **Nhóm có tên `(?<ten>...)`:** gọi bằng `group("ten")`, không lo số thứ tự bị lệch khi sửa regex.
+
+### Lỗi hay gặp
+
+1. Gọi `group()` khi chưa `find()`/`matches()` hoặc khi chúng đã trả `false` thì ném `IllegalStateException: No match found`.
+2. Nhầm `groupCount()` là "số lần khớp". Thật ra nó chỉ đếm số cặp `( )` trong regex.
+3. Gọi `str.matches(regex)` trong vòng lặp lớn: mỗi lần Java biên dịch lại regex. Nên `Pattern.compile` một lần rồi dùng lại.
